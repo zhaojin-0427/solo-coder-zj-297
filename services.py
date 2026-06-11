@@ -2,7 +2,42 @@ from typing import Dict, List, Optional, Tuple
 from constants import STAGE_INFO, TRANSITION_SUCCESS_BASE, DIGESTION_STATUS, get_weight_range, get_nutrient_requirement
 
 
+VALID_STAGES = set(STAGE_INFO.keys())
+
+
+def _validate_stage(current_stage: int) -> Optional[Dict]:
+    if current_stage not in VALID_STAGES:
+        return {
+            "current_stage": current_stage,
+            "current_stage_name": "无效段位",
+            "recommended_stage": None,
+            "recommended_stage_name": None,
+            "suitability": "invalid",
+            "suitability_score": 0.0,
+            "suggestion": f"无效的奶粉段位: {current_stage}，有效段位为 1-4",
+            "recommended": None,
+        }
+    return None
+
+
+def _validate_month_age(month_age: int) -> Optional[Dict]:
+    if month_age < 0:
+        return {
+            "recommended_stage": None,
+            "stage_name": None,
+            "month_range": None,
+            "description": None,
+            "daily_intake_range": None,
+            "match_score": 0.0,
+            "error": f"无效的月龄: {month_age}，月龄不能为负数",
+        }
+    return None
+
+
 def match_stage_by_month(month_age: int) -> Dict:
+    validation = _validate_month_age(month_age)
+    if validation:
+        return validation
     for stage_num in sorted(STAGE_INFO.keys()):
         info = STAGE_INFO[stage_num]
         if info["min_month"] <= month_age < info["max_month"]:
@@ -37,6 +72,21 @@ def match_stage_by_month(month_age: int) -> Dict:
 
 
 def calculate_stage_suitability(month_age: int, current_stage: int) -> Dict:
+    validation = _validate_stage(current_stage)
+    if validation:
+        return validation
+    month_validation = _validate_month_age(month_age)
+    if month_validation:
+        return {
+            "current_stage": current_stage,
+            "current_stage_name": STAGE_INFO[current_stage]["name"],
+            "recommended_stage": None,
+            "recommended_stage_name": None,
+            "suitability": "invalid",
+            "suitability_score": 0.0,
+            "suggestion": month_validation.get("error", "无效月龄"),
+            "recommended": month_validation,
+        }
     recommended = match_stage_by_month(month_age)
     recommended_stage = recommended["recommended_stage"]
 
@@ -155,6 +205,17 @@ def analyze_digestion(digestion_status: str, digestion_note: Optional[str] = Non
 
 
 def analyze_nutrient_gap(month_age: int, current_stage: int, daily_intake_ml: float, weight_kg: float) -> Dict:
+    if current_stage not in VALID_STAGES:
+        return {
+            "daily_intake_ml": daily_intake_ml,
+            "recommended_intake_range": None,
+            "intake_status": "无效段位",
+            "actual_intake_per_day": None,
+            "nutrient_gaps": None,
+            "overall_gap_score": 0.0,
+            "overall_status": f"无效的奶粉段位: {current_stage}，有效段位为 1-4",
+            "need_supplement": False,
+        }
     stage_nutrients = STAGE_INFO[current_stage]["nutrients"]
     requirements = get_nutrient_requirement(month_age)
     intake_per_100ml = daily_intake_ml / 100.0
@@ -302,6 +363,39 @@ def comprehensive_analysis(
     weight_history: Optional[List[Dict]] = None,
     digestion_note: Optional[str] = None,
 ) -> Dict:
+    stage_validation = _validate_stage(current_stage)
+    if stage_validation:
+        return {
+            "stage_suitability": stage_validation,
+            "weight_analysis": None,
+            "digestion_analysis": None,
+            "nutrient_analysis": None,
+            "transition_analysis": None,
+            "warnings": [{"type": "invalid_stage", "level": "high", "message": stage_validation["suggestion"]}],
+            "need_doctor_consultation": False,
+            "overall_suggestion": stage_validation["suggestion"],
+        }
+    month_validation = _validate_month_age(month_age)
+    if month_validation:
+        return {
+            "stage_suitability": {
+                "current_stage": current_stage,
+                "current_stage_name": STAGE_INFO[current_stage]["name"],
+                "recommended_stage": None,
+                "recommended_stage_name": None,
+                "suitability": "invalid",
+                "suitability_score": 0.0,
+                "suggestion": month_validation.get("error", "无效月龄"),
+                "recommended": month_validation,
+            },
+            "weight_analysis": None,
+            "digestion_analysis": None,
+            "nutrient_analysis": None,
+            "transition_analysis": None,
+            "warnings": [{"type": "invalid_month_age", "level": "high", "message": month_validation.get("error", "无效月龄")}],
+            "need_doctor_consultation": False,
+            "overall_suggestion": month_validation.get("error", "无效月龄"),
+        }
     stage_suitability = calculate_stage_suitability(month_age, current_stage)
     weight_analysis = analyze_weight_growth(month_age, weight_kg, gender, weight_history)
     digestion_analysis = analyze_digestion(digestion_status, digestion_note)

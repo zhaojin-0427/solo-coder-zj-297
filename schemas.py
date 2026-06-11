@@ -73,25 +73,25 @@ class HealthRecordOut(BaseModel):
 
 class StageMatchRequest(BaseModel):
     baby_id: int
-    month_age: int
-    current_stage: Optional[int] = None
+    month_age: int = Field(..., ge=0, le=72, description="月龄")
+    current_stage: Optional[int] = Field(None, ge=1, le=4, description="当前奶粉段位 1-4")
 
 
 class NutritionAdviceRequest(BaseModel):
     baby_id: int
-    month_age: int
-    current_stage: int
-    daily_intake_ml: float
-    weight_kg: float
+    month_age: int = Field(..., ge=0, le=72, description="月龄")
+    current_stage: int = Field(..., ge=1, le=4, description="当前奶粉段位 1-4")
+    daily_intake_ml: float = Field(..., gt=0, description="每日奶量(ml)")
+    weight_kg: float = Field(..., gt=0, description="体重(kg)")
 
 
 class TransitionWarningRequest(BaseModel):
     baby_id: int
-    month_age: int
-    current_stage: int
-    daily_intake_ml: float
-    digestion_status: str
-    weight_kg: float
+    month_age: int = Field(..., ge=0, le=72, description="月龄")
+    current_stage: int = Field(..., ge=1, le=4, description="当前奶粉段位 1-4")
+    daily_intake_ml: float = Field(..., gt=0, description="每日奶量(ml)")
+    digestion_status: str = Field(..., description="消化状态")
+    weight_kg: float = Field(..., gt=0, description="体重(kg)")
     weight_history: Optional[List[dict]] = Field(None, description="体重历史数据 [{month_age, weight_kg}]")
 
 
