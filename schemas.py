@@ -188,10 +188,20 @@ class TransitionPlanCreate(BaseModel):
     observation_focus: Optional[str] = Field(None, max_length=500, description="观察重点")
     status: Optional[str] = Field("draft", description="计划状态: draft/in_progress/paused/completed/cancelled")
 
+    @field_validator("plan_name")
+    @classmethod
+    def plan_name_not_blank(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("计划名称不能为空或仅含空白字符")
+        return stripped
+
     @field_validator("start_date")
     @classmethod
-    def start_date_not_in_past_too_far(cls, v: date) -> date:
+    def start_date_valid(cls, v: date) -> date:
         from datetime import timedelta
+        if v > date.today():
+            raise ValueError("开始日期不能是未来日期")
         if v < date.today() - timedelta(days=30):
             raise ValueError("开始日期不能早于30天前")
         return v

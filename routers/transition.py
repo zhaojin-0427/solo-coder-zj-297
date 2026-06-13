@@ -128,6 +128,10 @@ def create_transition_record(data: TransitionRecordCreate, db: Session = Depends
     if not plan:
         return ApiResponse(code=404, message="转段计划不存在", data=None)
 
+    if plan.status in ("paused", "completed", "cancelled"):
+        status_map = {"paused": "已暂停", "completed": "已完成", "cancelled": "已取消"}
+        return ApiResponse(code=400, message=f"转段计划{status_map[plan.status]}，无法提交新的跟踪记录", data=None)
+
     start_of_day = datetime.combine(data.record_date, datetime.min.time())
     end_of_day = datetime.combine(data.record_date, datetime.max.time())
     existing = db.query(TransitionRecord).filter(
