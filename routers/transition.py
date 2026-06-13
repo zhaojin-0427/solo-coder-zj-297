@@ -25,6 +25,9 @@ def create_transition_plan(data: TransitionPlanCreate, db: Session = Depends(get
     if not baby:
         return ApiResponse(code=404, message="宝宝档案不存在", data=None)
 
+    if data.original_stage != baby.current_stage:
+        return ApiResponse(code=400, message=f"原段位({data.original_stage})与宝宝当前段位({baby.current_stage})不一致", data=None)
+
     schedule_json = json.dumps([item.model_dump() for item in data.daily_ratio_schedule], ensure_ascii=False)
 
     plan = TransitionPlan(
@@ -131,6 +134,31 @@ def create_transition_record(data: TransitionRecordCreate, db: Session = Depends
     if plan.status in ("paused", "completed", "cancelled"):
         status_map = {"paused": "已暂停", "completed": "已完成", "cancelled": "已取消"}
         return ApiResponse(code=400, message=f"转段计划{status_map[plan.status]}，无法提交新的跟踪记录", data=None)
+
+    plan_start = plan.start_date.date() if hasattr(plan.start_date, "date") else plan.start_date
+    from datetime import timedelta
+    plan_end = plan_start + timedelta(days=plan.transition_days - 1)
+    if data.record_date < plan_start:
+        return ApiResponse(code=400, message=f"记录日期不能早于计划开始日期({plan_start.isoformat()})", data=None)
+    if data.record_date > plan_end:
+        return ApiResponse(code=400, message=f"记录日期不能晚于计划结束日期({plan_end.isoformat()})", data=None)
+
+    schedule = json.loads(plan.daily_ratio_schedule) if plan.daily_ratio_schedule else []
+    day_index = (data.record_date - plan_start).days
+    if not schedule or day_index < 0 or day_index >= len(schedule):
+        return ApiResponse(
+            code=400,
+            message=f"第{day_index + 1}天不在计划安排范围内，无法校验新旧奶粉比例",
+            data=None,
+        )
+    expected_old = schedule[day_index]["old_ratio"]
+    expected_new = schedule[day_index]["new_ratio"]
+    if data.old_formula_ratio != expected_old or data.new_formula_ratio != expected_new:
+        return ApiResponse(
+            code=400,
+            message=f"第{day_index + 1}天新旧奶粉比例应为 旧:{expected_old}% 新:{expected_new}%，当前提交为 旧:{data.old_formula_ratio}% 新:{data.new_formula_ratio}%",
+            data=None,
+        )
 
     start_of_day = datetime.combine(data.record_date, datetime.min.time())
     end_of_day = datetime.combine(data.record_date, datetime.max.time())
