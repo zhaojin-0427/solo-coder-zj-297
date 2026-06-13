@@ -91,8 +91,10 @@ def transition_warning(data: TransitionWarningRequest, db: Session = Depends(get
     if not baby:
         return ApiResponse(code=404, message="宝宝档案不存在", data=None)
 
-    weight_history = data.weight_history
-    if not weight_history:
+    weight_history = None
+    if data.weight_history:
+        weight_history = [item.model_dump() for item in data.weight_history]
+    else:
         records = db.query(HealthRecord).filter(
             HealthRecord.baby_id == data.baby_id
         ).order_by(HealthRecord.month_age).all()

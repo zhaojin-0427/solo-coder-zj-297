@@ -8,6 +8,22 @@ from schemas import ApiResponse
 
 Base.metadata.create_all(bind=engine)
 
+
+def _safe_errors(errors):
+    safe = []
+    for e in errors:
+        item = {}
+        for k, v in e.items():
+            if k == "ctx":
+                item[k] = {str(kk): str(vv) for kk, vv in v.items()} if isinstance(v, dict) else str(v)
+            elif isinstance(v, (str, int, float, bool, type(None))):
+                item[k] = v
+            else:
+                item[k] = str(v)
+        safe.append(item)
+    return safe
+
+
 app = FastAPI(
     title="妈妈奶粉段位转换与宝宝月龄适配分析 API",
     description="提供宝宝档案管理、段位匹配、营养建议、转段预警、医生咨询等服务",
@@ -30,7 +46,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content=ApiResponse(
             code=400,
             message="参数校验失败",
-            data={"details": exc.errors()},
+            data={"details": _safe_errors(exc.errors())},
         ).model_dump(),
     )
 
