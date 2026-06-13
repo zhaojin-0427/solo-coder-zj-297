@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from database import engine, Base
-from routers import baby, analysis, doctor, transition
+from routers import baby, analysis, doctor, transition, formula_batches, brewing_records
 from schemas import ApiResponse
 
 Base.metadata.create_all(bind=engine)
@@ -80,6 +80,10 @@ def root():
                 "段位参考": "/api/analysis/stages",
                 "医生咨询": "/api/doctor/consultation",
                 "转段跟踪计划与复盘": "/api/transition-plans",
+                "奶粉批次管理": "/api/formula-batches",
+                "冲泡记录与安全追踪": "/api/brewing-records",
+                "冲泡安全日报": "/api/brewing-records/daily-report",
+                "库存预警": "/api/brewing-records/batch-stock-warning",
             },
         },
     )
@@ -94,6 +98,8 @@ app.include_router(baby.router)
 app.include_router(analysis.router)
 app.include_router(doctor.router)
 app.include_router(transition.router)
+app.include_router(formula_batches.router)
+app.include_router(brewing_records.router)
 
 
 if __name__ == "__main__":

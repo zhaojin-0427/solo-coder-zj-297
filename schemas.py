@@ -1,10 +1,27 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime, date
 
 
 VALID_DIGESTION_STATUSES = {"normal", "mild_discomfort", "constipation", "diarrhea", "allergy", "vomiting"}
 VALID_CONSULTATION_TYPES = {"digestion", "growth", "nutrition", "transition", "other"}
+VALID_STORAGE_METHODS = {"refrigerated", "cool_dry", "room_temperature"}
+VALID_REMAINING_HANDLING = {"discarded", "stored", "used_later", "other"}
+STORAGE_METHOD_NAMES = {
+    "refrigerated": "冷藏",
+    "cool_dry": "阴凉干燥",
+    "room_temperature": "常温",
+}
+REMAINING_HANDLING_NAMES = {
+    "discarded": "丢弃",
+    "stored": "储存",
+    "used_later": "稍后使用",
+    "other": "其他",
+}
+MIN_WATER_TEMPERATURE = 40.0
+MAX_WATER_TEMPERATURE = 70.0
+SCOOP_TO_WATER_RATIO = 30.0
+OPENING_SAFE_DAYS = 30
 
 
 class ApiResponse(BaseModel):
@@ -323,3 +340,161 @@ class TransitionRecordOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class FormulaBatchCreate(BaseModel):
+    baby_id: int = Field(..., description="宝宝档案ID")
+    brand_name: str = Field(..., min_length=1, max_length=100, description="品牌名")
+    product_name: str = Field(..., min_length=1, max_length=100, description="产品名")
+    stage: int = Field(..., ge=1, le=4, description="奶粉段位 1-4")
+    batch_number: str = Field(..., min_length=1, max_length=100, description="批次号")
+    opening_date: date = Field(..., description="开封日期")
+    expiry_date: date = Field(..., description="保质期")
+    can_capacity_grams: float = Field(..., gt=0, description="每罐容量(克)")
+    current_remaining_grams: float = Field(..., ge=0, description="当前剩余量(克)")
+    storage_method: str = Field(..., description="储存方式: refrigerated/cool_dry/room_temperature")
+    notes: Optional[str] = Field(None, max_length=500, description="备注")
+
+    @field_validator("opening_date")
+    @classmethod
+    def opening_date_not_future(cls, v: date) -> date:
+        if v > date.today():
+            raise ValueError("开封日期不能是未来日期")
+        return v
+
+    @field_validator("expiry_date")
+    @classmethod
+    def expiry_date_valid(cls, v: date, info) -> date:
+        opening = info.data.get("opening_date")
+        if opening and v <= opening:
+            raise ValueError("保质期必须晚于开封日期")
+        if v < date.today():
+            raise ValueError("保质期不能早于今天")
+        return v
+
+    @field_validator("current_remaining_grams")
+    @classmethod
+    def remaining_not_exceed_capacity(cls, v: float, info) -> float:
+        capacity = info.data.get("can_capacity_grams")
+        if capacity is not None and v > capacity:
+            raise ValueError("当前剩余量不能超过每罐容量")
+        return v
+
+    @field_validator("storage_method")
+    @classmethod
+    def validate_storage_method(cls, v: str) -> str:
+        if v not in VALID_STORAGE_METHODS:
+            raise ValueError(f"无效的储存方式: {v}，有效值为: {', '.join(sorted(VALID_STORAGE_METHODS))}")
+        return v
+
+
+class FormulaBatchUpdateRemaining(BaseModel):
+    current_remaining_grams: float = Field(..., ge=0, description="当前剩余量(克)")
+
+
+class FormulaBatchOut(BaseModel):
+    id: int
+    baby_id: int
+    brand_name: str
+    product_name: str
+    stage: int
+    batch_number: str
+    opening_date: date
+    expiry_date: date
+    can_capacity_grams: float
+    current_remaining_grams: float
+    storage_method: str
+    notes: Optional[str]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FormulaBatchWithAnalysis(FormulaBatchOut):
+    risk_analysis: Optional[Dict] = None
+
+
+class BrewingRecordCreate(BaseModel):
+    baby_id: int = Field(..., description="宝宝档案ID")
+    batch_id: int = Field(..., description="奶粉批次ID")
+    brewing_time: datetime = Field(..., description="冲泡时间")
+    water_temperature: float = Field(..., description="水温(摄氏度)")
+    formula_scoops: float = Field(..., gt=0, description="奶粉勺数")
+    water_volume_ml: float = Field(..., gt=0, description="水量(毫升)")
+    actual_consumed_ml: float = Field(..., ge=0, description="实际饮用量(毫升)")
+    has_remaining: bool = Field(default=False, description="是否剩余")
+    remaining_handling: Optional[str] = Field(None, description="剩余处理方式")
+    abnormal_notes: Optional[str] = Field(None, max_length=500, description="异常备注")
+
+    @field_validator("brewing_time")
+    @classmethod
+    def brewing_time_not_future(cls, v: datetime) -> datetime:
+        if v > datetime.now():
+            raise ValueError("冲泡时间不能是未来时间")
+        return v
+
+    @field_validator("water_temperature")
+    @classmethod
+    def validate_water_temperature(cls, v: float) -> float:
+        if v < MIN_WATER_TEMPERATURE or v > MAX_WATER_TEMPERATURE:
+            raise ValueError(
+                f"水温超出合理范围: {v}°C，合理范围为 {MIN_WATER_TEMPERATURE}-{MAX_WATER_TEMPERATURE}°C"
+            )
+        return v
+
+    @field_validator("actual_consumed_ml")
+    @classmethod
+    def consumed_not_exceed_water(cls, v: float, info) -> float:
+        water = info.data.get("water_volume_ml")
+        if water is not None and v > water:
+            raise ValueError("实际饮用量不能超过冲泡水量")
+        return v
+
+    @field_validator("remaining_handling")
+    @classmethod
+    def validate_remaining_handling(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_REMAINING_HANDLING:
+            raise ValueError(f"无效的剩余处理方式: {v}，有效值为: {', '.join(sorted(VALID_REMAINING_HANDLING))}")
+        return v
+
+
+class BrewingRecordOut(BaseModel):
+    id: int
+    baby_id: int
+    batch_id: int
+    brewing_time: datetime
+    water_temperature: float
+    formula_scoops: float
+    water_volume_ml: float
+    actual_consumed_ml: float
+    has_remaining: bool
+    remaining_handling: Optional[str]
+    abnormal_notes: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class BrewingRecordWithAnalysis(BrewingRecordOut):
+    safety_analysis: Optional[Dict] = None
+
+
+class BrewingDailyReport(BaseModel):
+    baby_id: int
+    baby_name: str
+    report_date: date
+    total_brewing_count: int
+    total_water_volume_ml: float
+    total_formula_scoops: float
+    total_actual_consumed_ml: float
+    total_wasted_ml: float
+    batch_usage_distribution: List[Dict]
+    abnormal_count: int
+    abnormal_details: List[Dict]
+    risk_level: str
+    overall_suggestions: List[str]
+    records: List[BrewingRecordWithAnalysis]

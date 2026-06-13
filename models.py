@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean, Date
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -92,3 +92,50 @@ class TransitionRecord(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     plan = relationship("TransitionPlan", back_populates="records")
+
+
+VALID_STORAGE_METHODS = {"refrigerated", "cool_dry", "room_temperature"}
+VALID_REMAINING_HANDLING = {"discarded", "stored", "used_later", "other"}
+
+
+class FormulaBatch(Base):
+    __tablename__ = "formula_batches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    baby_id = Column(Integer, ForeignKey("baby_profiles.id"), nullable=False)
+    brand_name = Column(String(100), nullable=False)
+    product_name = Column(String(100), nullable=False)
+    stage = Column(Integer, nullable=False)
+    batch_number = Column(String(100), nullable=False)
+    opening_date = Column(Date, nullable=False)
+    expiry_date = Column(Date, nullable=False)
+    can_capacity_grams = Column(Float, nullable=False)
+    current_remaining_grams = Column(Float, nullable=False)
+    storage_method = Column(String(30), nullable=False)
+    notes = Column(Text)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    baby = relationship("BabyProfile")
+    brewing_records = relationship("BrewingRecord", back_populates="batch", cascade="all, delete-orphan")
+
+
+class BrewingRecord(Base):
+    __tablename__ = "brewing_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    baby_id = Column(Integer, ForeignKey("baby_profiles.id"), nullable=False)
+    batch_id = Column(Integer, ForeignKey("formula_batches.id"), nullable=False)
+    brewing_time = Column(DateTime, nullable=False)
+    water_temperature = Column(Float, nullable=False)
+    formula_scoops = Column(Float, nullable=False)
+    water_volume_ml = Column(Float, nullable=False)
+    actual_consumed_ml = Column(Float, nullable=False)
+    has_remaining = Column(Boolean, default=False)
+    remaining_handling = Column(String(30))
+    abnormal_notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    baby = relationship("BabyProfile")
+    batch = relationship("FormulaBatch", back_populates="brewing_records")
