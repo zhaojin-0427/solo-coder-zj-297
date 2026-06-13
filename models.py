@@ -139,3 +139,59 @@ class BrewingRecord(Base):
 
     baby = relationship("BabyProfile")
     batch = relationship("FormulaBatch", back_populates="brewing_records")
+
+
+VALID_ABNORMAL_EVENT_TYPES = {"vomiting", "diarrhea", "constipation", "allergy", "fever", "low_appetite", "bloating", "skin_rash", "other"}
+VALID_SEVERITY_LEVELS = {"mild", "moderate", "severe", "critical"}
+VALID_EVENT_STATUSES = {"open", "investigating", "handling", "observing", "closed", "reopened"}
+
+
+class AbnormalEvent(Base):
+    __tablename__ = "abnormal_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    baby_id = Column(Integer, ForeignKey("baby_profiles.id"), nullable=False)
+    event_type = Column(String(30), nullable=False)
+    event_time = Column(DateTime, nullable=False)
+    batch_id = Column(Integer, ForeignKey("formula_batches.id"), nullable=True)
+    brewing_record_id = Column(Integer, ForeignKey("brewing_records.id"), nullable=True)
+    daily_milk_intake_ml = Column(Float)
+    digestion_status = Column(String(30))
+    body_temperature = Column(Float)
+    weight_kg = Column(Float)
+    symptom_description = Column(Text, nullable=False)
+    severity_level = Column(String(20), nullable=False)
+    on_site_measures = Column(Text)
+    status = Column(String(20), default="open", nullable=False)
+    auto_risk_level = Column(String(20))
+    auto_suspected_causes = Column(Text)
+    auto_brewing_abnormal_related = Column(Boolean, default=False)
+    auto_batch_risk_related = Column(Boolean, default=False)
+    auto_suggest_pause_batch = Column(Boolean, default=False)
+    auto_suggest_stop_transition = Column(Boolean, default=False)
+    auto_suggest_doctor_consultation = Column(Boolean, default=False)
+    auto_observation_suggestions = Column(Text)
+    closed_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    baby = relationship("BabyProfile")
+    batch = relationship("FormulaBatch")
+    brewing_record = relationship("BrewingRecord")
+    handling_records = relationship("EventHandlingRecord", back_populates="event", cascade="all, delete-orphan")
+
+
+class EventHandlingRecord(Base):
+    __tablename__ = "event_handling_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("abnormal_events.id"), nullable=False)
+    handler_name = Column(String(50))
+    handling_time = Column(DateTime, default=datetime.utcnow)
+    handling_type = Column(String(30), nullable=False)
+    handling_description = Column(Text, nullable=False)
+    follow_up_plan = Column(Text)
+    status_after = Column(String(20))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    event = relationship("AbnormalEvent", back_populates="handling_records")

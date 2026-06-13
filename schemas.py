@@ -498,3 +498,218 @@ class BrewingDailyReport(BaseModel):
     risk_level: str
     overall_suggestions: List[str]
     records: List[BrewingRecordWithAnalysis]
+
+
+VALID_ABNORMAL_EVENT_TYPES = {"vomiting", "diarrhea", "constipation", "allergy", "fever", "low_appetite", "bloating", "skin_rash", "other"}
+ABNORMAL_EVENT_TYPE_NAMES = {
+    "vomiting": "呕吐",
+    "diarrhea": "腹泻",
+    "constipation": "便秘",
+    "allergy": "过敏",
+    "fever": "发热",
+    "low_appetite": "食欲差",
+    "bloating": "腹胀",
+    "skin_rash": "皮疹",
+    "other": "其他",
+}
+VALID_SEVERITY_LEVELS = {"mild", "moderate", "severe", "critical"}
+SEVERITY_LEVEL_NAMES = {
+    "mild": "轻度",
+    "moderate": "中度",
+    "severe": "重度",
+    "critical": "危重",
+}
+VALID_EVENT_STATUSES = {"open", "investigating", "handling", "observing", "closed", "reopened"}
+EVENT_STATUS_NAMES = {
+    "open": "待处理",
+    "investigating": "调查中",
+    "handling": "处置中",
+    "observing": "观察中",
+    "closed": "已关闭",
+    "reopened": "重新开启",
+}
+VALID_HANDLING_TYPES = {"onsite", "doctor", "medication", "diet_adjust", "observation", "batch_change", "transition_pause", "other"}
+HANDLING_TYPE_NAMES = {
+    "onsite": "现场处理",
+    "doctor": "医生处置",
+    "medication": "用药",
+    "diet_adjust": "饮食调整",
+    "observation": "观察跟进",
+    "batch_change": "更换批次",
+    "transition_pause": "暂停转段",
+    "other": "其他",
+}
+RISK_LEVEL_NAMES = {
+    "low": "低风险",
+    "medium": "中风险",
+    "high": "高风险",
+    "critical": "危重风险",
+}
+
+
+class AbnormalEventCreate(BaseModel):
+    baby_id: int = Field(..., description="宝宝档案ID")
+    event_type: str = Field(..., description="事件类型: vomiting/diarrhea/constipation/allergy/fever/low_appetite/bloating/skin_rash/other")
+    event_time: datetime = Field(..., description="事件发生时间")
+    batch_id: Optional[int] = Field(None, description="关联奶粉批次ID")
+    brewing_record_id: Optional[int] = Field(None, description="关联冲泡记录ID")
+    daily_milk_intake_ml: Optional[float] = Field(None, gt=0, description="当日奶量(ml)")
+    digestion_status: Optional[str] = Field(None, description="消化状态")
+    body_temperature: Optional[float] = Field(None, description="体温(摄氏度)")
+    weight_kg: Optional[float] = Field(None, gt=0, description="体重(kg)")
+    symptom_description: str = Field(..., min_length=1, max_length=2000, description="症状描述")
+    severity_level: str = Field(..., description="严重程度: mild/moderate/severe/critical")
+    on_site_measures: Optional[str] = Field(None, max_length=1000, description="现场处理措施")
+
+    @field_validator("event_type")
+    @classmethod
+    def validate_event_type(cls, v: str) -> str:
+        if v not in VALID_ABNORMAL_EVENT_TYPES:
+            raise ValueError(f"无效的事件类型: {v}，有效值为: {', '.join(sorted(VALID_ABNORMAL_EVENT_TYPES))}")
+        return v
+
+    @field_validator("severity_level")
+    @classmethod
+    def validate_severity(cls, v: str) -> str:
+        if v not in VALID_SEVERITY_LEVELS:
+            raise ValueError(f"无效的严重程度: {v}，有效值为: {', '.join(sorted(VALID_SEVERITY_LEVELS))}")
+        return v
+
+    @field_validator("event_time")
+    @classmethod
+    def event_time_not_future(cls, v: datetime) -> datetime:
+        if v > datetime.now():
+            raise ValueError("事件发生时间不能是未来时间")
+        return v
+
+    @field_validator("digestion_status")
+    @classmethod
+    def validate_digestion(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_DIGESTION_STATUSES:
+            raise ValueError(f"无效的消化状态: {v}，有效值为: {', '.join(sorted(VALID_DIGESTION_STATUSES))}")
+        return v
+
+
+class AbnormalEventStatusUpdate(BaseModel):
+    status: str = Field(..., description="事件状态: open/investigating/handling/observing/closed/reopened")
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        if v not in VALID_EVENT_STATUSES:
+            raise ValueError(f"无效的事件状态: {v}，有效值为: {', '.join(sorted(VALID_EVENT_STATUSES))}")
+        return v
+
+
+class EventHandlingRecordCreate(BaseModel):
+    event_id: int = Field(..., description="异常事件ID")
+    handler_name: Optional[str] = Field(None, max_length=50, description="处置人员")
+    handling_time: Optional[datetime] = Field(None, description="处置时间")
+    handling_type: str = Field(..., description="处置类型: onsite/doctor/medication/diet_adjust/observation/batch_change/transition_pause/other")
+    handling_description: str = Field(..., min_length=1, max_length=2000, description="处置描述")
+    follow_up_plan: Optional[str] = Field(None, max_length=1000, description="后续跟进计划")
+    status_after: Optional[str] = Field(None, description="处置后状态")
+
+    @field_validator("handling_type")
+    @classmethod
+    def validate_handling_type(cls, v: str) -> str:
+        if v not in VALID_HANDLING_TYPES:
+            raise ValueError(f"无效的处置类型: {v}，有效值为: {', '.join(sorted(VALID_HANDLING_TYPES))}")
+        return v
+
+    @field_validator("status_after")
+    @classmethod
+    def validate_status_after(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_EVENT_STATUSES:
+            raise ValueError(f"无效的处置后状态: {v}，有效值为: {', '.join(sorted(VALID_EVENT_STATUSES))}")
+        return v
+
+
+class EventHandlingRecordOut(BaseModel):
+    id: int
+    event_id: int
+    handler_name: Optional[str]
+    handling_time: Optional[datetime]
+    handling_type: str
+    handling_description: str
+    follow_up_plan: Optional[str]
+    status_after: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AbnormalEventAutoAnalysis(BaseModel):
+    risk_level: Optional[str] = None
+    suspected_causes: Optional[List[str]] = None
+    brewing_abnormal_related: Optional[bool] = None
+    batch_risk_related: Optional[bool] = None
+    suggest_pause_batch: Optional[bool] = None
+    suggest_stop_transition: Optional[bool] = None
+    suggest_doctor_consultation: Optional[bool] = None
+    observation_suggestions: Optional[List[str]] = None
+
+
+class AbnormalEventOut(BaseModel):
+    id: int
+    baby_id: int
+    event_type: str
+    event_time: datetime
+    batch_id: Optional[int]
+    brewing_record_id: Optional[int]
+    daily_milk_intake_ml: Optional[float]
+    digestion_status: Optional[str]
+    body_temperature: Optional[float]
+    weight_kg: Optional[float]
+    symptom_description: str
+    severity_level: str
+    on_site_measures: Optional[str]
+    status: str
+    auto_analysis: Optional[AbnormalEventAutoAnalysis] = None
+    closed_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AbnormalEventWithDetails(AbnormalEventOut):
+    handling_records: Optional[List[EventHandlingRecordOut]] = None
+    batch_info: Optional[Dict] = None
+    brewing_record_info: Optional[Dict] = None
+    baby_info: Optional[Dict] = None
+
+
+class AbnormalEventReplayRequest(BaseModel):
+    baby_id: int = Field(..., description="宝宝档案ID")
+    start_date: date = Field(..., description="开始日期")
+    end_date: date = Field(..., description="结束日期")
+
+    @field_validator("end_date")
+    @classmethod
+    def validate_date_range(cls, v: date, info) -> date:
+        start = info.data.get("start_date")
+        if start is not None and v < start:
+            raise ValueError("结束日期不能早于开始日期")
+        return v
+
+
+class AbnormalEventReplaySummary(BaseModel):
+    baby_id: int
+    baby_name: str
+    start_date: date
+    end_date: date
+    total_event_count: int
+    type_distribution: List[Dict]
+    high_risk_count: int
+    closed_event_count: int
+    handling_completion_rate: float
+    related_batch_ranking: List[Dict]
+    digestion_abnormal_count: int
+    transition_related_count: int
+    recurrence_risk_level: str
+    recurrence_risk_score: float
+    recurrence_risk_factors: List[str]
+    overall_suggestion: str
