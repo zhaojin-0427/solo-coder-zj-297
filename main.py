@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from database import engine, Base
-from routers import baby, analysis, doctor
+from routers import baby, analysis, doctor, transition
 from schemas import ApiResponse
 
 Base.metadata.create_all(bind=engine)
@@ -79,6 +79,7 @@ def root():
                 "转段预警": "/api/analysis/transition-warning",
                 "段位参考": "/api/analysis/stages",
                 "医生咨询": "/api/doctor/consultation",
+                "转段跟踪计划与复盘": "/api/transition-plans",
             },
         },
     )
@@ -92,6 +93,7 @@ def health_check():
 app.include_router(baby.router)
 app.include_router(analysis.router)
 app.include_router(doctor.router)
+app.include_router(transition.router)
 
 
 if __name__ == "__main__":

@@ -52,3 +52,43 @@ class DoctorConsultation(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     baby = relationship("BabyProfile", back_populates="consultations")
+
+
+VALID_TRANSITION_PLAN_STATUSES = {"draft", "in_progress", "paused", "completed", "cancelled"}
+
+
+class TransitionPlan(Base):
+    __tablename__ = "transition_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    baby_id = Column(Integer, ForeignKey("baby_profiles.id"), nullable=False)
+    plan_name = Column(String(100), nullable=False)
+    original_stage = Column(Integer, nullable=False)
+    target_stage = Column(Integer, nullable=False)
+    start_date = Column(DateTime, nullable=False)
+    transition_days = Column(Integer, nullable=False)
+    daily_ratio_schedule = Column(Text, nullable=False)
+    observation_focus = Column(Text)
+    status = Column(String(20), default="draft", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    baby = relationship("BabyProfile")
+    records = relationship("TransitionRecord", back_populates="plan", cascade="all, delete-orphan")
+
+
+class TransitionRecord(Base):
+    __tablename__ = "transition_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    plan_id = Column(Integer, ForeignKey("transition_plans.id"), nullable=False)
+    record_date = Column(DateTime, nullable=False)
+    old_formula_ratio = Column(Integer, nullable=False)
+    new_formula_ratio = Column(Integer, nullable=False)
+    milk_intake_ml = Column(Float, nullable=False)
+    digestion_status = Column(String(30), nullable=False)
+    weight_kg = Column(Float)
+    note = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    plan = relationship("TransitionPlan", back_populates="records")
