@@ -16,7 +16,11 @@ from schemas import (
     ReportShareCreate, ReportShareOut, SharedReportSummary,
     ApiResponse, REPORT_TYPE_NAMES,
 )
-from services import generate_feeding_report, calculate_report_period
+from core.reports import generate_feeding_report
+from core.utils import calculate_report_period
+from core.validators.date import validate_date_range, validate_date_not_future
+from core.validators.enums import validate_report_type, validate_report_status
+from core.utils import success_response, not_found_response, bad_request_response
 
 router = APIRouter(prefix="/api/reports", tags=["喂养报告管理"])
 

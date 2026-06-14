@@ -3,11 +3,13 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import BabyProfile, HealthRecord
 from schemas import ApiResponse, StageMatchRequest, NutritionAdviceRequest, TransitionWarningRequest
-from services import (
+from core.algorithms import (
     match_stage_by_month, calculate_stage_suitability, analyze_weight_growth,
     analyze_nutrient_gap, analyze_digestion, calculate_transition_success_rate,
     comprehensive_analysis,
 )
+from core.utils import success_response, not_found_response, bad_request_response
+from core.validators.stage import validate_stage, validate_month_age
 from constants import STAGE_INFO
 
 router = APIRouter(prefix="/api/analysis", tags=["分析服务"])

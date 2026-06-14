@@ -14,7 +14,10 @@ from schemas import (
     TransitionRecordCreate,
     TransitionRecordOut,
 )
-from services import generate_phase_review, generate_plan_review
+from core.algorithms import generate_phase_review, generate_plan_review
+from core.validators.date import validate_date_range, validate_date_not_future
+from core.validators.ratio import validate_ratio_sum_100
+from core.utils import success_response, not_found_response, bad_request_response
 
 router = APIRouter(prefix="/api/transition-plans", tags=["转段跟踪计划与复盘"])
 

@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import BabyProfile, DoctorConsultation, HealthRecord
 from schemas import ApiResponse, DoctorConsultationCreate, DoctorConsultationOut
-from services import analyze_digestion, analyze_weight_growth, analyze_nutrient_gap, calculate_stage_suitability
+from core.algorithms import analyze_digestion, analyze_weight_growth, analyze_nutrient_gap, calculate_stage_suitability
+from core.validators.enums import validate_consultation_type
+from core.utils import success_response, not_found_response, bad_request_response
 from datetime import datetime
 
 router = APIRouter(prefix="/api/doctor", tags=["医生咨询"])

@@ -8,10 +8,14 @@ from schemas import (
     BrewingRecordCreate, BrewingRecordOut,
     BrewingRecordWithAnalysis, ApiResponse, SCOOP_TO_WATER_RATIO,
 )
-from services import (
+from core.algorithms import (
     analyze_brewing_record, generate_brewing_daily_report,
     analyze_formula_batch,
 )
+from core.utils import calculate_stock_days
+from core.validators.date import validate_date_not_future
+from core.validators.enums import validate_storage_method, validate_remaining_handling
+from core.utils import success_response, not_found_response, bad_request_response
 
 router = APIRouter(prefix="/api/brewing-records", tags=["冲泡记录与安全追踪"])
 
@@ -319,7 +323,6 @@ def get_batch_stock_warning(baby_id: int, db: Session = Depends(get_db)):
     total_remaining_grams = sum(b.current_remaining_grams for b in active_batches)
     total_stock_days = 0
     if latest_health_record and total_remaining_grams > 0:
-        from services import calculate_stock_days
         total_stock_days = calculate_stock_days(
             total_remaining_grams, latest_health_record.daily_intake_ml
         )
