@@ -713,3 +713,200 @@ class AbnormalEventReplaySummary(BaseModel):
     recurrence_risk_score: float
     recurrence_risk_factors: List[str]
     overall_suggestion: str
+
+
+VALID_FAMILY_MEMBER_ROLES = {"viewer", "manager"}
+FAMILY_MEMBER_ROLE_NAMES = {
+    "viewer": "查看者",
+    "manager": "管理者",
+}
+
+
+class FamilyMemberCreate(BaseModel):
+    baby_id: int = Field(..., description="宝宝档案ID")
+    member_name: str = Field(..., min_length=1, max_length=50, description="成员姓名")
+    relation: str = Field(..., min_length=1, max_length=30, description="与宝宝关系")
+    phone: Optional[str] = Field(None, max_length=20, description="联系电话")
+    role: Optional[str] = Field("viewer", description="角色: viewer/manager")
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: Optional[str]) -> str:
+        if v is None:
+            return "viewer"
+        if v not in VALID_FAMILY_MEMBER_ROLES:
+            raise ValueError(f"无效的角色: {v}，有效值为: {', '.join(sorted(VALID_FAMILY_MEMBER_ROLES))}")
+        return v
+
+
+class FamilyMemberUpdate(BaseModel):
+    member_name: Optional[str] = Field(None, min_length=1, max_length=50)
+    relation: Optional[str] = Field(None, min_length=1, max_length=30)
+    phone: Optional[str] = Field(None, max_length=20)
+    role: Optional[str] = Field(None, description="角色: viewer/manager")
+    is_active: Optional[bool] = None
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in VALID_FAMILY_MEMBER_ROLES:
+            raise ValueError(f"无效的角色: {v}，有效值为: {', '.join(sorted(VALID_FAMILY_MEMBER_ROLES))}")
+        return v
+
+
+class FamilyMemberOut(BaseModel):
+    id: int
+    baby_id: int
+    member_name: str
+    relation: str
+    phone: Optional[str]
+    role: str
+    role_name: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        instance = super().model_validate(obj, **kwargs)
+        instance.role_name = FAMILY_MEMBER_ROLE_NAMES.get(instance.role, instance.role)
+        return instance
+
+
+VALID_REPORT_TYPES = {"weekly", "monthly"}
+REPORT_TYPE_NAMES = {
+    "weekly": "周报",
+    "monthly": "月报",
+}
+VALID_REPORT_STATUSES = {"pending", "generating", "completed", "failed"}
+REPORT_STATUS_NAMES = {
+    "pending": "待生成",
+    "generating": "生成中",
+    "completed": "已完成",
+    "failed": "生成失败",
+}
+
+
+class FeedingReportGenerateRequest(BaseModel):
+    baby_id: int = Field(..., description="宝宝档案ID")
+    report_type: str = Field(..., description="报告类型: weekly/monthly")
+    period_start: Optional[date] = Field(None, description="周期开始日期，默认自动计算")
+    period_end: Optional[date] = Field(None, description="周期结束日期，默认自动计算")
+
+    @field_validator("report_type")
+    @classmethod
+    def validate_report_type(cls, v: str) -> str:
+        if v not in VALID_REPORT_TYPES:
+            raise ValueError(f"无效的报告类型: {v}，有效值为: {', '.join(sorted(VALID_REPORT_TYPES))}")
+        return v
+
+
+class FeedingReportStatusUpdate(BaseModel):
+    status: str = Field(..., description="报告状态: pending/generating/completed/failed")
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        if v not in VALID_REPORT_STATUSES:
+            raise ValueError(f"无效的报告状态: {v}，有效值为: {', '.join(sorted(VALID_REPORT_STATUSES))}")
+        return v
+
+
+class FeedingReportOut(BaseModel):
+    id: int
+    baby_id: int
+    baby_name: Optional[str] = None
+    report_type: str
+    report_type_name: Optional[str] = None
+    period_start: date
+    period_end: date
+    status: str
+    status_name: Optional[str] = None
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    total_milk_ml: float
+    avg_daily_milk_ml: float
+    weight_change_kg: float
+    digestion_abnormal_count: int
+    brewing_abnormal_count: int
+    batch_risk_count: int
+    transition_progress: float
+    doctor_consultation_count: int
+    abnormal_event_completion_rate: float
+    overall_score: float
+    generated_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        instance = super().model_validate(obj, **kwargs)
+        instance.report_type_name = REPORT_TYPE_NAMES.get(instance.report_type, instance.report_type)
+        instance.status_name = REPORT_STATUS_NAMES.get(instance.status, instance.status)
+        if hasattr(obj, "baby") and obj.baby:
+            instance.baby_name = obj.baby.baby_name
+        return instance
+
+
+class FeedingReportDetail(FeedingReportOut):
+    report_data: Optional[Dict] = None
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        import json
+        if isinstance(obj, object) and hasattr(obj, "report_data") and isinstance(obj.report_data, str):
+            try:
+                obj.report_data = json.loads(obj.report_data)
+            except (json.JSONDecodeError, TypeError):
+                obj.report_data = None
+        return super().model_validate(obj, **kwargs)
+
+
+class ReportShareCreate(BaseModel):
+    report_id: int = Field(..., description="报告ID")
+    shared_by: Optional[str] = Field(None, max_length=50, description="分享人")
+    expires_days: Optional[int] = Field(7, ge=1, le=30, description="有效期天数")
+
+
+class ReportShareOut(BaseModel):
+    id: int
+    report_id: int
+    share_code: str
+    shared_by: Optional[str]
+    view_count: int
+    expires_at: Optional[datetime]
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SharedReportSummary(BaseModel):
+    report_id: int
+    baby_name: str
+    report_type: str
+    report_type_name: str
+    period_start: date
+    period_end: date
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    total_milk_ml: float
+    avg_daily_milk_ml: float
+    weight_change_kg: float
+    digestion_abnormal_count: int
+    brewing_abnormal_count: int
+    batch_risk_count: int
+    transition_progress: float
+    doctor_consultation_count: int
+    abnormal_event_completion_rate: float
+    overall_score: float
+    generated_at: Optional[datetime] = None
+    shared_by: Optional[str] = None

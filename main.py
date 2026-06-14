@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from database import engine, Base
-from routers import baby, analysis, doctor, transition, formula_batches, brewing_records, abnormal_events
+from routers import baby, analysis, doctor, transition, formula_batches, brewing_records, abnormal_events, family, reports
 from schemas import ApiResponse
 
 Base.metadata.create_all(bind=engine)
@@ -87,6 +87,9 @@ def root():
                 "喂养异常事件管理": "/api/abnormal-events",
                 "异常事件复盘统计": "/api/abnormal-events/replay",
                 "异常事件元数据": "/api/abnormal-events/meta/types",
+                "家庭成员管理": "/api/family",
+                "喂养报告": "/api/reports",
+                "分享报告查询": "/api/reports/shared/{share_code}",
             },
         },
     )
@@ -104,6 +107,8 @@ app.include_router(transition.router)
 app.include_router(formula_batches.router)
 app.include_router(brewing_records.router)
 app.include_router(abnormal_events.router)
+app.include_router(family.router)
+app.include_router(reports.router)
 
 
 if __name__ == "__main__":

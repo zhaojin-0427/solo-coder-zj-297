@@ -195,3 +195,72 @@ class EventHandlingRecord(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     event = relationship("AbnormalEvent", back_populates="handling_records")
+
+
+VALID_FAMILY_MEMBER_ROLES = {"viewer", "manager"}
+
+
+class FamilyMember(Base):
+    __tablename__ = "family_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    baby_id = Column(Integer, ForeignKey("baby_profiles.id"), nullable=False)
+    member_name = Column(String(50), nullable=False)
+    relation = Column(String(30), nullable=False)
+    phone = Column(String(20))
+    role = Column(String(20), default="viewer", nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    baby = relationship("BabyProfile")
+
+
+VALID_REPORT_TYPES = {"weekly", "monthly"}
+VALID_REPORT_STATUSES = {"pending", "generating", "completed", "failed"}
+
+
+class FeedingReport(Base):
+    __tablename__ = "feeding_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    baby_id = Column(Integer, ForeignKey("baby_profiles.id"), nullable=False)
+    report_type = Column(String(20), nullable=False)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    status = Column(String(20), default="pending", nullable=False)
+    title = Column(String(200))
+    summary = Column(Text)
+    report_data = Column(Text)
+    total_milk_ml = Column(Float, default=0.0)
+    avg_daily_milk_ml = Column(Float, default=0.0)
+    weight_change_kg = Column(Float, default=0.0)
+    digestion_abnormal_count = Column(Integer, default=0)
+    brewing_abnormal_count = Column(Integer, default=0)
+    batch_risk_count = Column(Integer, default=0)
+    transition_progress = Column(Float, default=0.0)
+    doctor_consultation_count = Column(Integer, default=0)
+    abnormal_event_completion_rate = Column(Float, default=0.0)
+    overall_score = Column(Float, default=0.0)
+    generated_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    baby = relationship("BabyProfile")
+    shares = relationship("ReportShare", back_populates="report", cascade="all, delete-orphan")
+
+
+class ReportShare(Base):
+    __tablename__ = "report_shares"
+
+    id = Column(Integer, primary_key=True, index=True)
+    report_id = Column(Integer, ForeignKey("feeding_reports.id"), nullable=False)
+    share_code = Column(String(32), unique=True, nullable=False)
+    shared_by = Column(String(50))
+    view_count = Column(Integer, default=0)
+    expires_at = Column(DateTime)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    report = relationship("FeedingReport", back_populates="shares")
